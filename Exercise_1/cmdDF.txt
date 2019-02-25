@@ -1,0 +1,86 @@
+// Dataset used can be found https://data.cityofchicago.org/Public-Safety/Crimes-2001-to-present/ijzp-q8t2
+
+//Launching the spark shell using yarn
+
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+	--num-executors 6 \
+	--executor-cores 2 \
+	--executor-memory 2G
+
+//Loading data from textfile
+
+val crimeData = sc.textFile("/public/crime/csv")
+
+//Getting the header from the data
+
+val header = crimeData.first
+
+// Filtering the data out from the text file i.e ignoring the header
+
+val crimeDataWithoutHeader = crimeData.filter( criminalRecord => criminalRecord != header)
+
+
+val crimeDataWithDateAndTypeDF = crimeDataWithoutHeader.
+	map(rec => (rec.split(",")(2), rec.split(",")(5))).
+	toDF("crime_date", "crime_type")
+
+crimeDataWithDateAndTypeDF.registerTempTable("crime_data")
+
+sqlContext.sql("select * from crime_data").show
+
+
+sqlContext.
+	sql("select cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int) crime_month, " +
+	"count(1) crime_count_per_month_per_type, " +
+	"crime_type " +
+	"from crime_data " +
+	"group by cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int), crime_type " +
+	"order by crime_month,  crime_count_per_month_per_type desc").show
+
+
+
+
+val crimeCountPerMonthPerTypeDF = sqlContext.
+	sql("select cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int) crime_month, " +
+	"count(1) crime_count_per_month_per_type, " +
+	"crime_type " +
+	"from crime_data " +
+	"group by cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int), crime_type " +
+	"order by crime_month,  crime_count_per_month_per_type desc")
+
+crimeCountPerMonthPerTypeDF.rdd.take(10).foreach(println)
+
+
+
+crimeCountPerMonthPerTypeDF.rdd.map( rec => rec.mkString("\t")).take(10).foreach(println)
+
+//Remove files already present in the folder
+// hadoop fs -rm -R  /user/yashag66/solutions/solution01/crimes_by_type_by_monthDF
+
+crimeCountPerMonthPerTypeDF.rdd.
+	map( rec => rec.mkString("\t")).
+	saveAsTextFile("/user/yashag66/solutions/solution01/crimes_by_type_by_monthDF", classOf[org.apache.hadoop.io.compress.GzipCodec])
+
+
+// Data Validating
+val output = sc.textFile("/user/yashag66/solutions/solution01/crimes_by_type_by_monthDF")
+
+output.collect().foreach(println)
+
+hadoop fs -get /user/yashag66/solutions/solution01/crimes_by_type_by_monthDF .
+
+gunzip filename
+
+view filename
+
+
+//the below thing doesnt work as SQLCOntext doesnt allow concatenation the tabs as "\t"
+val crimeCountPerMonthPerTypeDF = sqlContext.
+	sql("Select concat(concat(concat(concat(crime_month,"\t"), crime_count_per_month_per_type),"\t"), crime_type) from " +
+	"(select cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int) crime_month, " +
+	"count(1) crime_count_per_month_per_type, " +
+	"crime_type " +
+	"from crime_data " +
+	"group by cast(concat(substr(crime_date,7,4), substr(crime_date, 0, 2)) as int), crime_type " +
+	"order by crime_month,  crime_count_per_month_per_type desc) q")

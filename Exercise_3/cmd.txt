@@ -1,0 +1,84 @@
+// Dataset used can be found https://data.cityofchicago.org/Public-Safety/Crimes-2001-to-present/ijzp-q8t2
+
+
+//Launching the spark shell using yarn
+
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+	--num-executors 6 \
+	--executor-cores 2 \
+	--executor-memory 2G
+
+
+
+//Loading data from textfile
+val crimeData = sc.textFile("/public/crime/csv")
+
+//Getting the header from the data
+val header = crimeData.first
+
+// Filtering the data out from the text file i.e ignoring the header
+val crimeDataWithoutHeader = crimeData.filter( criminalRecord => criminalRecord != header)
+
+val crimeCountForResidence = sc.parallelize(crimeDataWithoutHeader.
+	filter(rec => rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(7) == "RESIDENCE").
+	map(rec => (rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(5), 1)).
+	reduceByKey((total, value) => total + value).
+	sortByKey(false)
+
+
+// this works the same as the above as we are not concerned with the columns which have values with comma in them itself.
+val crimeTopThree = sc.parallelize(crimeDataWithoutHeader.
+	filter(rec => rec.split(",")(7) == "RESIDENCE").
+	map(rec => (rec.split(",")(5), 1)).
+	reduceByKey((total, value) => total + value).
+	map(rec => (rec._2, rec._1)).
+	sortByKey(false).
+	take(3))
+
+
+
+crimeDataWithoutHeader.
+	filter(rec => rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(7) == "RESIDENCE").
+	take(10).
+	foreach(println)
+
+
+val crimeReducedData = sc.parallelize(crimeDataWithoutHeader.
+	filter(rec => rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(7) == "RESIDENCE").
+	map(rec => (rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(5), 1)).
+	reduceByKey((total, value) => total + value).
+	map(rec => (rec._2, rec._1)).
+	sortByKey(false).
+	take(3))
+
+
+
+val crimeReducedDataDF = crimeReducedData.
+	map(rec => (rec._2, rec._1)).
+	toDF("Crime Type","Number of Incidents")
+
+crimeReducedDataDF.
+	write.json("user/yashag66/solutions/solution03/RESIDENCE_AREA_CRIMINAL_TYPE_DATA_TOP_THREE")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

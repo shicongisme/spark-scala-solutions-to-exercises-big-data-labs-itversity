@@ -1,0 +1,36 @@
+// Dataset used can be found https://data.cityofchicago.org/Public-Safety/Crimes-2001-to-present/ijzp-q8t2
+
+
+//Launching the spark shell using yarn
+
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+	--num-executors 6 \
+	--executor-cores 2 \
+	--executor-memory 2G
+
+
+
+
+val crimeData = sc.textFile("/public/crime/csv")
+
+
+val header = crimeData.first
+
+
+val crimeDataWithoutHeader = crimeData.filter( criminalRecord => criminalRecord != header)
+
+
+val crimeDataDF = crimeDataWithoutHeader.
+	map(rec => (rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(7),rec.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1)(5))).
+	toDF("Location", "Crime_Type")
+
+crimeDataDF.registerTempTable("crime_data_yashag66")
+
+sqlContext.sql("select Crime_Type, count(1) crime_count " +
+	"from crime_data_yashag66 where Location ='RESIDENCE' group by Crime_Type order by crime_count desc limit 3").
+	coalesce(1).
+	save("user/yashag66/solutions/solution03/RESIDENCE_AREA_CRIMINAL_TYPE_DATA_TOP_THREE_DF", "json")
+
+
+

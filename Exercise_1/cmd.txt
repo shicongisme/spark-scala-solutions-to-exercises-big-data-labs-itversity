@@ -1,0 +1,93 @@
+// Dataset used can be found https://data.cityofchicago.org/Public-Safety/Crimes-2001-to-present/ijzp-q8t2
+
+
+//Launching the spark shell using yarn
+
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+	--num-executors 6 \
+	--executor-cores 2 \
+	--executor-memory 2G
+
+//Loading data from textfile
+
+val crimeData = sc.textFile("/public/crime/csv")
+
+//Getting the header from the data
+
+val header = crimeData.first
+
+// Filtering the data out from the text file i.e ignoring the header
+
+val crimeDataWithoutHeader = crimeData.filter( criminalRecord => criminalRecord != header)
+
+
+// Taking first row of data for performing the operation on single row, later leveraging the same for all rows
+
+val rec = crimeDataWithoutHeader.first
+
+//Chevking the distinct dates in the data
+
+val distinctDates = crimeDataWithoutHeader.
+	map(criminalRecord => criminalRecord.split(",")(2).split(" ")(0)).
+	distinct.
+	collect.
+	sorted
+
+
+// Printing the distinct dates on the console
+
+distinctDates.foreach(println)
+
+
+//Performing the operation on single row of data
+
+val t = {
+	val r = rec.split(",")
+	val d = r(2).split(" ")(0)
+	val m = d.split("/")(2) + d.split("/")(0)
+	((m.toInt, r(5)), 1)
+}
+
+//Leveraging the above operation on all data
+
+val criminalRecordsWithMonthAndType = crimeDataWithoutHeader.
+	map( rec => {
+	val r = rec.split(",")
+	val d = r(2).split(" ")(0)
+	val m = d.split("/")(2) + d.split("/")(0)
+	((m.toInt, r(5)), 1)  
+	})
+
+// Counting the number of particular crime types in a particular month
+
+val crimeCountPerMonthPerType = criminalRecordsWithMonthAndType.
+	reduceByKey((total, value) => total + value)
+
+
+// Getting Tab separated data out in sorted order
+
+val crimeCountPerMonthPerTypeSorted = crimeCountPerMonthPerType.
+	map( rec => 
+	((rec._1._1, -rec._2), rec._1._1+"\t"+rec._2+"\t"+rec._1._2)).
+	sortByKey().
+	map(rec =>  rec._2)
+
+
+//To get compression format value look into using command 
+// cd /etc/hadoop/conf
+// vi core-site.xml
+
+//To save the output in one single file use coalesce(num_of_file) as shown below
+
+crimeCountPerMonthPerTypeSorted.
+	coalesce(1).
+	saveAsTextFile("/user/yashag66/solutions/solution01/crimes_by_type_by_month", classOf[org.apache.hadoop.io.compress.GzipCodec])
+
+
+//This saves file in multiple parts
+crimeCountPerMonthPerTypeSorted.saveAsTextFile("/user/yashag66/solutions/solution01/crimes_by_type_by_month", classOf[org.apache.hadoop.io.compress.GzipCodec])
+
+
+//CHecking the number of files inside HDFS
+// hadoop fs -ls /user/yashag66/solutions/solution01/crimes_by_type_by_month

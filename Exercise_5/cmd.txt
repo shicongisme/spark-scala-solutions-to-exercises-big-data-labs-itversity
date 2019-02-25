@@ -1,0 +1,18 @@
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+	--num-executors 10 \
+	--executor-cores 2 \
+	--executor-memory 3G 
+
+val lines = sc.textFile("/public/randomtextwriter")
+
+val words = lines.flatMap(rec => rec.split(" "))
+
+val tuples = words.map(word => (word,1))
+
+val wordCount = tuples.reduceByKey((total,value) => total + value, 8)
+
+val wordCountDF = wordCount.toDF("Word", "Count")
+
+import com.databricks.spark.avro._
+wordCountDF.write.avro("/user/yashag66/solutions/solution05/wordcount")
