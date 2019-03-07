@@ -1,0 +1,131 @@
+The configuration file i use is a simple configuration file(reference Flume User Guide)
+
+example.conf: A single-node Flume configuration
+
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = localhost
+a1.sources.r1.port = 45444
+
+# Describe the sink
+a1.sinks.k1.type = logger
+
+# Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+
+
+After this i run the command:
+flume-ng agent --name a1 --conf-file /home/yashag66/flume_demo/example.conf --conf /home/yashag66/flume_demo
+
+Then run this command on a different terminal to stream messages as netcat serves as our source of logs:
+telnet localhost 45444
+
+
+mkdir wslogstohdfs
+cp example.conf wslogstohdfs/
+cd wslogstohdfs/
+mv example.conf wshdfs.conf
+vi wshdfs.conf
+
+
+
+Edit the configuration file wshdfs.conf to the below format(For eg     :%s/a1/ws)
+
+wshdfs.conf: A single-node Flume configuration
+
+# Name the components on this agent
+wh.sources = ws
+wh.sinks = hd
+wh.channels = mem
+
+# Describe/configure the source
+wh.sources.ws.type = exec
+wh.sources.ws.command = tail -F /opt/gen_logs/logs/access.log
+
+# Describe the sink
+wh.sinks.hd.type = hdfs
+wh.sinks.hd.hdfs.path = hdfs://nn01.itversity.com:8020/user/yashag66/flume_demo
+wh.sinks.hd.hdfs.filePrefix = FlumeDemo
+wh.sinks.hd.hdfs.fileSuffix = .txt
+wh.sinks.hd.hdfs.rollInterval = 120
+wh.sinks.hd.hdfs.rollSize = 1048576
+wh.sinks.hd.hdfs.rollCount = 100
+wh.sinks.hd.hdfs.fileType = DataStream
+
+# Use a channel which buffers events in memory
+wh.channels.mem.type = memory
+wh.channels.mem.capacity = 1000
+wh.channels.mem.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+wh.sources.ws.channels = mem
+wh.sinks.hd.channel = mem
+
+
+
+
+
+//Comand to run flume
+flume-ng agent --name wh --conf-file /home/yashag66/flume_demo/wslogstohdfs/wshdfs.conf --conf /etc/flume/conf
+
+
+//Check for the number of logs in the file in hdfs
+hadoop fs -cat /user/yashag66/flume_demo/FlumeDemo.1551179826150.txt|wc -l
+
+
+
+
+//On Itversity Labs the shell scripts to create and run kafka cluster is placed on the below given path
+cd /usr/hdp/current/kafka-broker/bin/
+
+ls -ltr
+
+
+kafka-topics.sh --create \
+--zookeeper nn01.itversity.com:2181,nn02.itversity.com:2181,rm01.itversity.com:2181 \
+--replication-factor 1 \
+--partitions 1 \
+--topic kafkademoyashag66
+
+kafka-topics.sh --create \
+--zookeeper nn01.itversity.com:2181,nn02.itversity.com:2181,rm01.itversity.com:2181 \
+--topic kafkademoyashag66
+
+
+kafka-console-producer.sh \
+--broker-list  wn01.itversity.com:6667,wn02.itversity.com:6667,wn03.itversity.com:6667,wn04.itversity.com:6667 \
+--topic kafkademoyashag66
+
+kafka-console-consumer.sh \
+--zookeeper nn01.itversity.com:2181,nn02.itversity.com:2181,rm01.itversity.com:2181 \
+--topic kafkademoyashag66 \
+--from-beginning
+
+
+// Run Spark-Shell on the sam ecluster with below command
+spark-shell --master yarn \
+	--conf spark.ui.port=12345 \
+
+On the same machine either we can have sparkContext or streamingContext
+
+import org.apache.spark.streaming._ 
+import org.apache.spark.SparkConf
+
+val conf = new SparkConf().setAppName("streaming").setMaster("yarn-client")
+
+
+// Configuration object as well as time for streaming
+val ssc = new StreamingContext(conf, Seconds(10))			
+
+
